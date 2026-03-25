@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TodoList - 待办事项管理</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background-color: #f4f7f6; 
+            margin: 0; 
+            padding: 40px 20px; 
+        }
+        .container { 
+            max-width: 900px; 
+            margin: 0 auto; 
+            background: #fff; 
+            padding: 30px; 
+            border-radius: 8px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+        }
+        h1 { 
+            text-align: center; 
+            color: #333; 
+            margin-bottom: 30px;
+        }
+        .add-todo { 
+            display: flex; 
+            gap: 10px; 
+            margin-bottom: 20px; 
+        }
+        .add-todo input { 
+            flex: 1; 
+            padding: 10px 15px; 
+            border: 1px solid #ccc; 
+            border-radius: 4px; 
+            font-size: 16px; 
+            outline: none;
+        }
+        .add-todo input:focus {
+            border-color: #007bff;
+        }
+        .btn { 
+            padding: 8px 15px; 
+            background-color: #1890ff; 
+            color: white; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 14px; 
+            transition: background 0.3s;
+        }
+        .btn:hover { background-color: #40a9ff; }
+        .btn-danger { background-color: #ff4d4f; }
+        .btn-danger:hover { background-color: #ff7875; }
+        .stats-bar { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 15px; 
+            font-size: 14px; 
+            color: #555; 
+            background: #fafafa;
+            padding: 10px 15px;
+            border-radius: 4px;
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 10px; 
+        }
+        th, td { 
+            padding: 14px; 
+            border-bottom: 1px solid #f0f0f0; 
+            text-align: left; 
+            font-size: 14px;
+        }
+        th { 
+            background-color: #fafafa; 
+            font-weight: 600; 
+            color: #333; 
+        }
+        tr:hover {
+            background-color: #fcfcfc;
+        }
+        .empty-state { 
+            text-align: center; 
+            color: #888; 
+            padding: 40px; 
+        }
+        .action-btns button { 
+            margin-right: 5px; 
+            padding: 5px 10px; 
+            font-size: 13px; 
+        }
+        .completed-text { 
+            text-decoration: line-through; 
+            color: #b0b0b0; 
+        }
+        input[type="checkbox"] {
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>TodoList - 待办事项管理</h1>
+    
+    <div class="add-todo">
+        <input type="text" id="todoInput" placeholder="输入待办事项名称，按回车也可添加...">
+        <button class="btn" onclick="addTodo()">添加事项</button>
+    </div>
+
+    <div class="stats-bar">
+        <div>
+            <strong>待办事项清单</strong> &nbsp;|&nbsp; 
+            总计：<span id="totalCount" style="color:#1890ff; font-weight:bold;">0</span> &nbsp;|&nbsp; 
+            已完成：<span id="completedCount" style="color:#52c41a; font-weight:bold;">0</span> &nbsp;|&nbsp; 
+            待完成：<span id="pendingCount" style="color:#faad14; font-weight:bold;">0</span>
+        </div>
+        <button class="btn btn-danger" onclick="batchDelete()">批量删除</button>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 40px;"><input type="checkbox" id="selectAll" onclick="toggleSelectAll()"></th>
+                <th>名称</th>
+                <th>状态</th>
+                <th>创建时间</th>
+                <th>修改时间</th>
+                <th style="width: 130px;">操作</th>
+            </tr>
+        </thead>
+        <tbody id="todoList">
+            <tr><td colspan="6" class="empty-state">暂无待办事项，添加一个吧！</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<script>
+    let todos = []; // 存储所有待办事项数据
+
+    // 时间格式化函数
+    function formatDate(timestamp) {
+        const d = new Date(timestamp);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        const seconds = String(d.getSeconds()).padStart(2, '0');
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    }
+
+    // 核心渲染函数
+    function render() {
+        const tbody = document.getElementById('todoList');
+        const totalCount = document.getElementById('totalCount');
+        const completedCount = document.getElementById('completedCount');
+        const pendingCount = document.getElementById('pendingCount');
+
+        let completed = 0;
+        
+        if (todos.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="empty-state">暂无待办事项，添加一个吧！</td></tr>';
+        } else {
+            tbody.innerHTML = '';
+            todos.forEach((todo) => {
+                if (todo.status === '已完成') completed++;
+                
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><input type="checkbox" class="todo-checkbox" data-id="${todo.id}"></td>
+                    <td class="${todo.status === '已完成' ? 'completed-text' : ''}">${todo.name}</td>
+                    <td>
+                        <span style="color: ${todo.status === '已完成' ? '#52c41a' : '#faad14'}; font-weight: 500;">
+                            ${todo.status}
+                        </span>
+                    </td>
+                    <td>${formatDate(todo.createTime)}</td>
+                    <td>${formatDate(todo.updateTime)}</td>
+                    <td class="action-btns">
+                        <button class="btn" style="background-color:${todo.status === '已完成' ? '#faad14' : '#52c41a'}" 
+                            onclick="toggleStatus(${todo.id})">
+                            ${todo.status === '已完成' ? '撤销' : '完成'}
+                        </button>
+                        <button class="btn btn-danger" onclick="deleteTodo(${todo.id})">删除</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 更新统计数据
+        totalCount.innerText = todos.length;
+        completedCount.innerText = completed;
+        pendingCount.innerText = todos.length - completed;
+    }
+
+    // 添加事项
+    function addTodo() {
+        const input = document.getElementById('todoInput');
+        const name = input.value.trim();
+        if (!name) return alert('请输入待办事项名称！');
+
+        const now = Date.now();
+        todos.unshift({ // 新建的在最上面
+            id: now,
+            name: name,
+            status: '待完成',
+            createTime: now,
+            updateTime: now
+        });
+        
+        input.value = '';
+        render();
+    }
+
+    // 回车快捷添加
+    document.getElementById('todoInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') addTodo();
+    });
+
+    // 切换状态（完成/待办）
+    function toggleStatus(id) {
+        const todo = todos.find(t => t.id === id);
+        if (todo) {
+            todo.status = todo.status === '待完成' ? '已完成' : '待完成';
+            todo.updateTime = Date.now();
+            render();
+        }
+    }
+
+    // 删除单项
+    function deleteTodo(id) {
+        if(confirm('确定要删除这条事项吗？')) {
+            todos = todos.filter(t => t.id !== id);
+            render();
+        }
+    }
+
+    // 全选/取消全选
+    function toggleSelectAll() {
+        const selectAllChecked = document.getElementById('selectAll').checked;
+        const checkboxes = document.querySelectorAll('.todo-checkbox');
+        checkboxes.forEach(cb => cb.checked = selectAllChecked);
+    }
+
+    // 批量删除
+    function batchDelete() {
+        const checkboxes = document.querySelectorAll('.todo-checkbox:checked');
+        if (checkboxes.length === 0) return alert('请先勾选要删除的事项！');
+        
+        if (confirm(`确定要删除选中的 ${checkboxes.length} 个事项吗？`)) {
+            const idsToDelete = Array.from(checkboxes).map(cb => parseInt(cb.getAttribute('data-id')));
+            todos = todos.filter(t => !idsToDelete.includes(t.id));
+            document.getElementById('selectAll').checked = false; // 清除全选状态
+            render();
+        }
+    }
+
+    // 页面加载完成后的首次渲染
+    render();
+</script>
+
+</body>
+</html>
